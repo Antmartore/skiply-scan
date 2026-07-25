@@ -4,7 +4,7 @@
 import "./styles.css";
 import { CAT, COND } from "./catalog.js";
 import { gradeFactor, valuate } from "./valuation.js";
-import { route } from "./routing.js";
+import { route, loadRoutingConfig, activeRouting } from "./routing.js";
 import { DEMOS, SVGS } from "./demo.js";
 import { engine, loadEngine, embedImage, dot, softmaxTop } from "./engine.js";
 import { matchRefdb } from "./refdb.js";
@@ -122,7 +122,7 @@ async function runScan(){
     const flag=!!cond.flag;
 
     $("procLbl").textContent="VALUING & ROUTING"; $("procSub").textContent="MSRP × grade × demand…";
-    const val=valuate(item,score);
+    const val=valuate(item,score,activeRouting().market_factor);
     const rt=route(item,grade,score,val,flag);
     const soleWear=Math.max(0,Math.min(95,Math.round(100-score-(Math.random()*6-3))));
     const ms=Math.round(performance.now()-t0);
@@ -140,7 +140,7 @@ function demoResult(msg){
   const d=DEMOS[demoIdx%DEMOS.length]; demoIdx++;
   const item=CAT.find(c=>c.model===d.q)||CAT[0];
   const grade= d.score>=85?"A": d.score>=65?"B": d.score>=35?"C":"D";
-  const val=valuate(item,d.score);
+  const val=valuate(item,d.score,activeRouting().market_factor);
   const rt=route(item,grade,d.score,val,false);
   lastResult={item,conf:d.conf,grade,score:d.score,val,rt,flag:false,ms:900,soleWear:100-d.score,svg:d.svg,ts:Date.now(),src:"demo"};
   show("sProc"); $("procLbl").textContent="IDENTIFYING"; $("procSub").textContent="Demo scan…";
@@ -163,7 +163,8 @@ function renderResult(r){
   $("resScoreBar").style.background= r.grade==="A"?"var(--green)":r.grade==="B"?"var(--cyan)":r.grade==="C"?"var(--amber)":"var(--red)";
   $("resWear").textContent=`SCORE ${r.score}/100 · SOLE ~${r.soleWear}% WORN${r.score<65?" · CREASING VISIBLE":""}`;
   $("resValue").innerHTML=`$${r.val.lo}–$${r.val.hi} <small>today</small>`;
-  $("resMsrp").textContent=`$${r.item.msrp} MSRP × ${(gradeFactor(r.score)).toFixed(2)} GRADE × ${r.item.demand.toFixed(2)} DEMAND`;
+  const mkt=activeRouting().market_factor;
+  $("resMsrp").textContent=`$${r.item.msrp} MSRP × ${(gradeFactor(r.score)).toFixed(2)} GRADE × ${r.item.demand.toFixed(2)} DEMAND`+(mkt!==1?` × ${mkt.toFixed(2)} MKT`:"");
   const rb=$("resRoute"); rb.className="route "+r.rt.main.name;
   $("resRouteName").textContent=r.rt.main.name;
   $("resRouteWhy").textContent=r.rt.main.why;
@@ -194,7 +195,7 @@ $("fixSave").onclick=()=>{
     ? productToItem(engine.refdb.products[+v.slice(1)],+v.slice(1))
     : CAT[+v];
   const grade= score>=85?"A": score>=65?"B": score>=35?"C":"D";
-  const val=valuate(item,score); const rt=route(item,grade,score,val,false);
+  const val=valuate(item,score,activeRouting().market_factor); const rt=route(item,grade,score,val,false);
   const fixed={...lastResult,item,score,grade,val,rt,conf:100,src:"corrected"};
   logScan(lastResult,fixed); lastResult=fixed; renderResult(fixed);
   $("mFix").classList.remove("on"); toast("Correction saved — engine learns from this");
@@ -233,6 +234,12 @@ function refreshSettings(){
     $("setScans").textContent=c.scans;
     $("setFixes").textContent=c.fixes;
   }).catch(()=>{});
+  const rc=activeRouting();
+  $("setRouting").textContent=rc.source+(rc.updated?" · "+rc.updated:"");
+  $("setRouteDetail").innerHTML=
+    Object.entries(rc.channels).map(([k,ch])=>
+      `<div>${k} → ${(ch.partners||[]).map(p=>p.name+(p.location?" ("+p.location+")":"")).join(" · ")}</div>`).join("")
+    +`<div>RESALE ≥ $${rc.thresholds.resale_min_value} · REPAIR MSRP ≥ $${rc.thresholds.repair_min_msrp} · MARKET ×${Number(rc.market_factor).toFixed(2)} · GEO ${rc.geography?.region||"—"}</div>`;
 }
 [$("btnGear"),$("btnGear2")].forEach(b=>b.onclick=()=>{refreshSettings();$("mSet").classList.add("on")});
 $("setClose").onclick=()=>$("mSet").classList.remove("on");
@@ -259,6 +266,7 @@ initGate();   // no-op unless ?gated=1; engine keeps loading behind the gate
 renderAngles();
 startCam();
 bootEngine();
+loadRoutingConfig(import.meta.env.BASE_URL+"routing.json").then(refreshSettings).catch(()=>{});
 migrateFromLocalStorage().then(refreshSettings).catch(()=>{});
 
 /* ---------- PWA: offline shell + model cache ---------- */

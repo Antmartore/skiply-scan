@@ -104,6 +104,7 @@ video,#stillImg{position:absolute;inset:0;width:100%;height:100%;object-fit:cove
 .setrow{display:flex;justify-content:space-between;align-items:center;padding:13px 0;border-bottom:1px solid var(--line);font-size:14px}
 .setrow .v{font-family:var(--mono);font-size:11px;color:var(--mut);text-align:right}
 .setrow button{color:var(--cyan);font-size:14px;font-weight:600}
+.routecfg{font-family:var(--mono);font-size:10px;color:var(--mut);line-height:1.9;letter-spacing:.5px;padding:10px 0;border-bottom:1px solid var(--line)}
 /* passcode gate */
 .gate{position:fixed;inset:0;background:var(--void);z-index:80;display:none;align-items:center;justify-content:center;padding:24px}
 .gate.on{display:flex}

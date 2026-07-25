@@ -71,7 +71,7 @@ The plaintext 6-character codes print **once** to your terminal (text them to cl
 - **Identify** — zero-shot CLIP (Hugging Face `Xenova/clip-vit-base-patch32`, runs in-browser via Transformers.js, WebGPU when available) matched against a 55-silhouette catalog: Nike, Adidas, New Balance, Hoka, On, Asics, Brooks, Allbirds + Red Wing/Ecco/Mephisto boots for the NuShoe tier.
 - **Grade** — 3-angle guided capture (side/sole/toe, Face ID-style), condition classes → A/B/C/D + 0–100 score.
 - **Value** — `MSRP × GradeFactor × BrandDemand × Market` per the Skiply spec, shown as a today range.
-- **Route** — decision tree → RESALE / REPAIR (NuShoe) / DONATE (Soles4Souls, Goodwill) / RECYCLE, with runner-up.
+- **Route** — decision tree → RESALE / REPAIR (NuShoe) / DONATE (Soles4Souls, Goodwill) / RECYCLE, with runner-up. Partners, thresholds, market factor and geography live in **`public/routing.json`** — edit it, redeploy, no code changes. Settings shows the active config; if the file is missing or invalid the built-in defaults (identical rules) apply.
 - **Training flywheel** — every scan and "Not right?" correction is logged to IndexedDB **with the captured frames as JPEGs**. Settings → *Export zip* downloads the full training set: `scans.json` + `scans.csv` + `frames/*.jpg` — labeled photos ready for fine-tuning (Stage 3). Logs from older versions migrate automatically.
 
 ## Code map
@@ -84,6 +84,7 @@ src/catalog.js        55-silhouette catalog + condition classes
 src/refdb.js          reference-image DB decode + nearest-photo matching
 src/valuation.js      MSRP × GradeFactor × Demand × Market
 src/routing.js        RESALE / REPAIR / DONATE / RECYCLE decision tree
+public/routing.json   editable partner/threshold/geo routing config
 src/demo.js           pitch demo scans + result illustrations
 src/telemetry.js      IndexedDB scan log + zip training-set export
 src/gate.js           ?gated=1 passcode gate (PBKDF2 check, 1h session)

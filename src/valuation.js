@@ -6,7 +6,7 @@ export function gradeFactor(s){
   return (s/34)*.10;                          // D: 0–.10
 }
 
-export function valuate(item, score){
-  const est = item.msrp * gradeFactor(score) * item.demand * 1.0;
+export function valuate(item, score, market=1.0){
+  const est = item.msrp * gradeFactor(score) * item.demand * market;
   return {lo:Math.max(0,Math.round(est*.88)), hi:Math.round(est*1.12), est:Math.round(est)};
 }
