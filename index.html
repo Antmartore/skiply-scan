@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#04070d">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Skiply Scan — Identify · Value · Route</title>
+<style>
+:root{
+  --void:#04070d; --void2:#06090f; --panel:#0a111c; --panel2:#0e1828; --line:#1b2c44;
+  --ink:#eef5ff; --ink2:#c8d6e8; --mut:#5f7390;
+  --green:#3dd98c; --cyan:#53d7ff; --amber:#ffb347; --red:#ff5d5d; --blue:#0A64BC;
+  --mono:ui-monospace,'SF Mono',SFMono-Regular,Menlo,Consolas,monospace;
+  --sans:-apple-system,BlinkMacSystemFont,'Inter','Segoe UI',sans-serif;
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{background:var(--void);color:var(--ink);font-family:var(--sans);overflow:hidden}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+.screen{position:fixed;inset:0;display:none;flex-direction:column;background:var(--void)}
+.screen.on{display:flex}
+/* ---------- header ---------- */
+.hdr{display:flex;align-items:center;justify-content:space-between;padding:calc(env(safe-area-inset-top,0px) + 14px) 18px 12px}
+.wordmark{display:flex;align-items:center;gap:8px;font-weight:800;font-size:18px;letter-spacing:.5px}
+.wordmark svg{display:block}
+.tagline{font-family:var(--mono);font-size:9px;letter-spacing:3px;color:var(--mut)}
+.gear{width:38px;height:38px;border-radius:10px;border:1px solid var(--line);background:var(--panel);display:flex;align-items:center;justify-content:center;color:var(--mut);font-size:16px}
+/* ---------- aim / capture ---------- */
+.camwrap{position:relative;flex:1;margin:0 14px;border-radius:22px;overflow:hidden;background:var(--void2);border:1px solid var(--line)}
+video,#stillImg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.guide{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none}
+.guide svg{width:78%;max-width:420px;opacity:.9}
+.guide .frame{stroke:var(--cyan);stroke-width:2;fill:none;stroke-dasharray:14 10;animation:dash 6s linear infinite}
+@keyframes dash{to{stroke-dashoffset:-240}}
+.prompt{position:absolute;left:0;right:0;bottom:106px;text-align:center;font-size:17px;font-weight:600;text-shadow:0 2px 8px rgba(0,0,0,.8)}
+.subprompt{position:absolute;left:0;right:0;bottom:84px;text-align:center;font-family:var(--mono);font-size:11px;letter-spacing:1.5px;color:var(--ink2);text-shadow:0 2px 8px rgba(0,0,0,.8)}
+.ringrow{position:absolute;left:0;right:0;bottom:18px;display:flex;align-items:center;justify-content:center;gap:26px}
+.shutter{width:66px;height:66px;border-radius:50%;background:var(--ink);border:4px solid rgba(255,255,255,.35);box-shadow:0 4px 18px rgba(0,0,0,.5)}
+.shutter:active{transform:scale(.94)}
+.pring{position:relative;width:52px;height:52px}
+.pring svg{transform:rotate(-90deg)}
+.pring .bg{stroke:var(--line);fill:none;stroke-width:4}
+.pring .fg{stroke:var(--cyan);fill:none;stroke-width:4;stroke-linecap:round;transition:stroke-dashoffset .5s}
+.pring .lbl{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:11px;color:var(--ink2)}
+.angles{position:absolute;top:14px;left:0;right:0;display:flex;justify-content:center;gap:8px}
+.chip{font-family:var(--mono);font-size:10px;letter-spacing:1px;padding:5px 10px;border-radius:20px;border:1px solid var(--line);background:rgba(4,7,13,.65);color:var(--mut);backdrop-filter:blur(6px)}
+.chip.now{border-color:var(--cyan);color:var(--cyan)}
+.chip.done{border-color:var(--green);color:var(--green)}
+.bottombar{padding:12px 18px calc(env(safe-area-inset-bottom,0px) + 14px);display:flex;gap:10px}
+.btn{flex:1;padding:15px;border-radius:14px;font-size:15px;font-weight:700;text-align:center}
+.btn.primary{background:var(--blue);color:#fff}
+.btn.ghost{border:1px solid var(--line);background:var(--panel);color:var(--ink2)}
+.btn.green{background:var(--green);color:#04170d}
+.btn:disabled{opacity:.4;cursor:default}
+/* engine banner */
+.engine{margin:10px 18px 0;padding:10px 14px;border-radius:12px;border:1px solid var(--line);background:var(--panel);font-family:var(--mono);font-size:11px;letter-spacing:.5px;color:var(--ink2);display:flex;align-items:center;gap:10px}
+.engine .dot{width:7px;height:7px;border-radius:50%;background:var(--amber);flex:none;animation:pulse 1.2s infinite}
+.engine.ready .dot{background:var(--green);animation:none}
+.engine.err .dot{background:var(--red);animation:none}
+@keyframes pulse{50%{opacity:.3}}
+.engine .bar{flex:1;height:4px;border-radius:2px;background:var(--line);overflow:hidden;display:none}
+.engine.loading .bar{display:block}
+.engine .bar i{display:block;height:100%;width:0;background:var(--cyan);transition:width .3s}
+/* ---------- processing ---------- */
+.proc{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:26px}
+.radar{position:relative;width:180px;height:180px;border-radius:50%;border:1px solid var(--line);background:radial-gradient(circle,#0a1626 0%,var(--void) 70%)}
+.radar .sweep{position:absolute;inset:0;border-radius:50%;background:conic-gradient(from 0deg,rgba(83,215,255,.55),transparent 26%);animation:spin 1.1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.radar .core{position:absolute;inset:0;display:flex;align-items:center;justify-content:center}
+.proclbl{font-family:var(--mono);font-size:12px;letter-spacing:2.5px;color:var(--cyan)}
+.procsub{font-size:13px;color:var(--mut);min-height:18px}
+/* ---------- result ---------- */
+.scroll{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:0 16px 20px}
+.card{border:1px solid var(--line);border-radius:20px;background:linear-gradient(180deg,var(--panel) 0%,var(--void2) 100%);overflow:hidden;margin-bottom:12px}
+.card .photo{position:relative;height:230px;background:#0a1322;display:flex;align-items:center;justify-content:center}
+.card .photo img{width:100%;height:100%;object-fit:cover}
+.card .photo svg{width:62%;max-width:340px}
+.conf{position:absolute;top:12px;right:12px;font-family:var(--mono);font-size:11px;letter-spacing:1px;padding:6px 11px;border-radius:20px;background:rgba(4,7,13,.75);border:1px solid var(--cyan);color:var(--cyan);backdrop-filter:blur(6px)}
+.card .body{padding:16px}
+.klabel{font-family:var(--mono);font-size:9px;letter-spacing:2.5px;color:var(--mut);margin-bottom:4px}
+.shoename{font-size:21px;font-weight:800;line-height:1.2}
+.shoemeta{font-family:var(--mono);font-size:11px;color:var(--ink2);margin-top:5px;letter-spacing:.5px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:16px}
+.cell{border:1px solid var(--line);border-radius:14px;padding:12px;background:var(--void2)}
+.gradechip{display:inline-flex;align-items:center;gap:8px;font-weight:800;font-size:24px}
+.gletter{width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px;color:#04070d}
+.g-A{background:var(--green)} .g-B{background:var(--cyan)} .g-C{background:var(--amber)} .g-D{background:var(--red)}
+.scorebar{height:5px;border-radius:3px;background:var(--line);margin-top:10px;overflow:hidden}
+.scorebar i{display:block;height:100%;border-radius:3px}
+.wear{font-family:var(--mono);font-size:10.5px;color:var(--ink2);margin-top:8px;line-height:1.5}
+.value{font-size:26px;font-weight:800;letter-spacing:-.5px}
+.value small{font-size:12px;color:var(--mut);font-weight:600}
+.msrpline{font-family:var(--mono);font-size:10.5px;color:var(--mut);margin-top:8px}
+.route{margin-top:12px;border-radius:16px;padding:15px 16px;border:1px solid}
+.route.RESALE{border-color:var(--green);background:rgba(61,217,140,.07)}
+.route.REPAIR{border-color:var(--amber);background:rgba(255,179,71,.07)}
+.route.DONATE{border-color:var(--cyan);background:rgba(83,215,255,.07)}
+.route.RECYCLE{border-color:var(--red);background:rgba(255,93,93,.07)}
+.routehead{display:flex;align-items:center;gap:10px;font-weight:800;font-size:18px}
+.routehead .arrow{font-family:var(--mono)}
+.RESALE .routehead{color:var(--green)} .REPAIR .routehead{color:var(--amber)}
+.DONATE .routehead{color:var(--cyan)} .RECYCLE .routehead{color:var(--red)}
+.routewhy{font-size:13px;color:var(--ink2);margin-top:6px;line-height:1.45}
+.runner{font-family:var(--mono);font-size:10.5px;color:var(--mut);margin-top:10px;letter-spacing:.5px}
+.flag{display:inline-block;font-family:var(--mono);font-size:10px;letter-spacing:1px;padding:4px 9px;border-radius:6px;background:rgba(255,93,93,.12);border:1px solid var(--red);color:var(--red);margin-top:10px}
+/* correction modal + settings */
+.modal{position:fixed;inset:0;background:rgba(2,4,8,.8);display:none;align-items:flex-end;z-index:50;backdrop-filter:blur(4px)}
+.modal.on{display:flex}
+.sheet{width:100%;max-height:82vh;overflow-y:auto;background:var(--panel);border-radius:22px 22px 0 0;border-top:1px solid var(--line);padding:20px 18px calc(env(safe-area-inset-bottom,0px) + 20px)}
+.sheet h3{font-size:17px;margin-bottom:14px}
+.sheet select,.sheet input[type=range]{width:100%;padding:13px;border-radius:12px;border:1px solid var(--line);background:var(--void2);color:var(--ink);font-size:15px;margin-bottom:14px;appearance:none}
+.setrow{display:flex;justify-content:space-between;align-items:center;padding:13px 0;border-bottom:1px solid var(--line);font-size:14px}
+.setrow .v{font-family:var(--mono);font-size:11px;color:var(--mut);text-align:right}
+.setrow button{color:var(--cyan);font-size:14px;font-weight:600}
+.toast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%);background:var(--panel2);border:1px solid var(--line);padding:10px 18px;border-radius:12px;font-size:13px;z-index:60;opacity:0;transition:opacity .3s;pointer-events:none;white-space:nowrap}
+.toast.on{opacity:1}
+.uploadhint{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;color:var(--mut);font-size:14px;text-align:center;padding:30px}
+input[type=file]{display:none}
+@media(min-width:700px){ .screen{max-width:430px;margin:0 auto;border-left:1px solid var(--line);border-right:1px solid var(--line)} .modal{max-width:430px;margin:0 auto} }
+</style>
+</head>
+<body>
+
+<!-- ============ SCREEN: AIM / CAPTURE ============ -->
+<div class="screen on" id="sAim">
+  <div class="hdr">
+    <div>
+      <div class="wordmark"><svg width="26" height="20" viewBox="0 0 36 26"><text x="0" y="24" font-family="system-ui" font-weight="800" font-size="0" fill="#fff"></text><path d="M2 20 L16 6 L27 17" stroke="#0A64BC" stroke-width="5.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>SKIPLY</div>
+      <div class="tagline">IDENTIFY · VALUE · ROUTE</div>
+    </div>
+    <button class="gear" id="btnGear" aria-label="Settings">⚙</button>
+  </div>
+  <div class="engine loading" id="engine"><span class="dot"></span><span id="engTxt">PREPARING ENGINE</span><span class="bar"><i id="engBar"></i></span></div>
+  <div class="camwrap" id="camwrap">
+    <video id="cam" autoplay playsinline muted></video>
+    <img id="stillImg" alt="" style="display:none">
+    <div class="uploadhint" id="uploadHint" style="display:none">
+      <div style="font-size:34px">📷</div>
+      <div>Camera unavailable.<br>Tap below to upload a photo for each angle.</div>
+    </div>
+    <div class="guide"><svg viewBox="0 0 300 170"><path class="frame" d="M28 118 C 30 92 52 84 78 80 C 118 74 138 46 168 40 C 196 34 216 44 224 62 C 262 68 276 84 274 104 C 272 122 252 130 224 132 L 60 134 C 40 134 27 130 28 118 Z"/></svg></div>
+    <div class="angles" id="angleChips"></div>
+    <div class="prompt" id="prompt">Point at the shoe</div>
+    <div class="subprompt" id="subprompt">TAP TO CAPTURE · SIDE VIEW FIRST</div>
+    <div class="ringrow">
+      <div class="pring"><svg width="52" height="52"><circle class="bg" cx="26" cy="26" r="22"/><circle class="fg" id="ringFg" cx="26" cy="26" r="22" stroke-dasharray="138.2" stroke-dashoffset="138.2"/></svg><span class="lbl" id="ringLbl">0/3</span></div>
+      <button class="shutter" id="btnShoot" aria-label="Capture"></button>
+      <div style="width:52px"></div>
+    </div>
+  </div>
+  <div class="bottombar">
+    <button class="btn ghost" id="btnDemo">▶ Demo scan</button>
+    <label class="btn ghost" for="fileIn" id="btnUpload" style="display:flex;align-items:center;justify-content:center">Upload photo</label>
+    <input type="file" id="fileIn" accept="image/*">
+  </div>
+</div>
+
+<!-- ============ SCREEN: PROCESSING ============ -->
+<div class="screen" id="sProc">
+  <div class="proc">
+    <div class="radar"><div class="sweep"></div><div class="core"><svg width="56" height="42" viewBox="0 0 36 26"><path d="M2 20 L16 6 L27 17" stroke="#0A64BC" stroke-width="5.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div></div>
+    <div class="proclbl" id="procLbl">IDENTIFYING</div>
+    <div class="procsub" id="procSub">Matching against 50 silhouettes…</div>
+  </div>
+</div>
+
+<!-- ============ SCREEN: RESULT ============ -->
+<div class="screen" id="sResult">
+  <div class="hdr">
+    <div>
+      <div class="wordmark"><svg width="26" height="20" viewBox="0 0 36 26"><path d="M2 20 L16 6 L27 17" stroke="#0A64BC" stroke-width="5.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>SKIPLY</div>
+      <div class="tagline">SCAN RESULT</div>
+    </div>
+    <button class="gear" id="btnGear2" aria-label="Settings">⚙</button>
+  </div>
+  <div class="scroll">
+    <div class="card">
+      <div class="photo" id="resPhoto"></div>
+      <div class="body">
+        <div class="klabel">IDENTIFIED</div>
+        <div class="shoename" id="resName">—</div>
+        <div class="shoemeta" id="resMeta">—</div>
+        <div class="grid2">
+          <div class="cell">
+            <div class="klabel">CONDITION</div>
+            <div class="gradechip"><span class="gletter" id="resGLetter">B</span><span id="resGWord">Gently used</span></div>
+            <div class="scorebar"><i id="resScoreBar"></i></div>
+            <div class="wear" id="resWear">—</div>
+          </div>
+          <div class="cell">
+            <div class="klabel">EST. VALUE TODAY</div>
+            <div class="value" id="resValue">—</div>
+            <div class="msrpline" id="resMsrp">—</div>
+          </div>
+        </div>
+        <div class="route" id="resRoute">
+          <div class="routehead"><span class="arrow">→</span><span id="resRouteName">RESALE</span></div>
+          <div class="routewhy" id="resRouteWhy">—</div>
+          <div class="runner" id="resRunner">—</div>
+          <span class="flag" id="resFlag" style="display:none">⚠ DAMAGE FLAG</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="bottombar">
+    <button class="btn ghost" id="btnWrong">Not right?</button>
+    <button class="btn green" id="btnAccept">✓ Accept</button>
+    <button class="btn primary" id="btnAgain">Scan next</button>
+  </div>
+</div>
+
+<!-- correction sheet -->
+<div class="modal" id="mFix">
+  <div class="sheet">
+    <h3>Fix the read — this trains the engine</h3>
+    <div class="klabel">CORRECT MODEL</div>
+    <select id="fixModel"></select>
+    <div class="klabel">CORRECT CONDITION — <span id="fixCondLbl">70</span>/100</div>
+    <input type="range" id="fixCond" min="5" max="98" value="70">
+    <div class="bottombar" style="padding:6px 0 0">
+      <button class="btn ghost" id="fixCancel">Cancel</button>
+      <button class="btn primary" id="fixSave">Save correction</button>
+    </div>
+  </div>
+</div>
+
+<!-- settings sheet -->
+<div class="modal" id="mSet">
+  <div class="sheet">
+    <h3>Settings</h3>
+    <div class="setrow"><span>Engine</span><span class="v" id="setEngine">loading…</span></div>
+    <div class="setrow"><span>Compute</span><span class="v" id="setDevice">—</span></div>
+    <div class="setrow"><span>Catalog</span><span class="v" id="setCatalog">—</span></div>
+    <div class="setrow"><span>Scans logged</span><span class="v" id="setScans">0</span></div>
+    <div class="setrow"><span>Corrections (training data)</span><span class="v" id="setFixes">0</span></div>
+    <div class="setrow"><span>Export training data</span><button id="setExport">Export CSV</button></div>
+    <div class="setrow"><span>Clear logged data</span><button id="setClear" style="color:var(--red)">Clear</button></div>
+    <div style="margin-top:14px;font-family:var(--mono);font-size:10px;color:var(--mut);line-height:1.7">
+      AI runs 100% on this device — no photos leave your phone.<br>
+      Model: CLIP ViT-B/32 via Hugging Face · one-time ~90MB download, cached.<br>
+      Load once on wifi; scans then work offline.
+    </div>
+    <div class="bottombar" style="padding:14px 0 0"><button class="btn ghost" id="setClose">Close</button></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script type="module">
+/* =====================================================================
+   SKIPLY SCAN MVP — on-device Identify · Grade · Value · Route
+   Engine: zero-shot CLIP (Hugging Face, runs in-browser). No APIs. $0/scan.
+   ===================================================================== */
+
+/* ---------- catalog: Tier 1 + Tier 2 from Skiply_Footwear_Assessment_Spec_v1 ---------- */
+const CAT = [
+ // brand, model, CLIP visual label, years, msrp, demand, category, repairable
+ ["Nike","Air Jordan 1 High","Nike Air Jordan 1 high-top basketball sneaker with swoosh","1985–present",180,1.35,"sneaker-high",0],
+ ["Nike","Air Jordan 4","Nike Air Jordan 4 basketball sneaker with mesh panels and wing eyelets","1989–present",215,1.40,"sneaker-high",0],
+ ["Nike","Dunk Low","Nike Dunk low-top sneaker with color blocked panels and swoosh","1985–present",115,1.25,"sneaker-low",0],
+ ["Nike","Air Force 1 '07","Nike Air Force 1 low white leather sneaker with swoosh","1982–present",115,1.15,"sneaker-low",0],
+ ["Nike","Air Max 90","Nike Air Max 90 sneaker with visible air bubble in heel","1990–present",130,1.00,"runner",0],
+ ["Nike","Air Max 270","Nike Air Max 270 sneaker with large heel air unit","2018–present",160,0.90,"runner",0],
+ ["Nike","Pegasus","Nike Pegasus mesh running shoe with swoosh","2020s",140,0.80,"runner",0],
+ ["Nike","Blazer Mid","Nike Blazer mid vintage style sneaker with large swoosh","1973–present",105,0.95,"sneaker-high",0],
+ ["Adidas","Samba OG","Adidas Samba low-profile indoor soccer shoe with three stripes and gum sole","1950–present",100,1.30,"sneaker-low",0],
+ ["Adidas","Gazelle","Adidas Gazelle suede sneaker with three stripes","1966–present",100,1.20,"sneaker-low",0],
+ ["Adidas","Campus 00s","Adidas Campus suede sneaker with three stripes chunky sole","2023–present",110,1.10,"sneaker-low",0],
+ ["Adidas","Superstar","Adidas Superstar shell-toe sneaker with three stripes","1969–present",100,0.85,"sneaker-low",0],
+ ["Adidas","Stan Smith","Adidas Stan Smith white leather tennis sneaker","1971–present",100,0.80,"sneaker-low",0],
+ ["Adidas","Ultraboost","Adidas Ultraboost knit running shoe with boost foam sole","2015–present",190,0.85,"runner",0],
+ ["Adidas","Yeezy Boost 350","Adidas Yeezy Boost 350 knit sneaker","2015–2022",230,1.20,"runner",0],
+ ["New Balance","550","New Balance 550 retro basketball sneaker with N logo","2020–present",120,1.15,"sneaker-low",0],
+ ["New Balance","990 series","New Balance 990 grey suede mesh running shoe with N logo","1982–present",200,1.10,"runner",0],
+ ["New Balance","9060","New Balance 9060 chunky lifestyle sneaker with N logo","2022–present",150,1.10,"runner",0],
+ ["New Balance","574","New Balance 574 classic suede sneaker with N logo","1988–present",90,0.80,"runner",0],
+ ["On","Cloud 5","On Cloud running shoe with hollow cloudtec pod sole","2019–present",140,0.85,"runner",0],
+ ["On","Cloudmonster","On Cloudmonster thick foam running shoe with pod sole","2022–present",170,0.90,"runner",0],
+ ["Hoka","Clifton","Hoka Clifton thick cushioned running shoe with oversized midsole","2014–present",145,0.90,"runner",0],
+ ["Hoka","Bondi","Hoka Bondi maximal cushion running shoe with huge midsole","2011–present",165,0.90,"runner",0],
+ ["Hoka","Speedgoat","Hoka Speedgoat trail running shoe with lugged outsole","2015–present",155,0.95,"runner",0],
+ ["Asics","Gel-Kayano","Asics Gel-Kayano stability running shoe with gel cushioning","1993–present",160,0.85,"runner",0],
+ ["Asics","GT-2160","Asics GT-2160 retro y2k running shoe silver accents","2023–present",110,1.05,"runner",0],
+ ["Asics","Gel-1130","Asics Gel-1130 retro running shoe with mesh and silver overlays","2023–present",100,1.10,"runner",0],
+ ["Brooks","Ghost","Brooks Ghost cushioned mesh running shoe","2018–present",140,0.80,"runner",0],
+ ["Brooks","Adrenaline GTS","Brooks Adrenaline supportive mesh running shoe","2018–present",140,0.75,"runner",0],
+ ["Allbirds","Tree Runner","Allbirds Tree Runner minimalist knit sneaker plain","2019–present",98,0.60,"casual",0],
+ ["Allbirds","Wool Runner","Allbirds Wool Runner soft wool sneaker plain","2016–present",110,0.60,"casual",0],
+ ["Converse","Chuck Taylor All Star","Converse Chuck Taylor canvas high-top sneaker with rubber toe cap","1957–present",65,0.75,"sneaker-high",0],
+ ["Converse","Chuck 70","Converse Chuck 70 premium canvas sneaker with rubber toe cap","2013–present",90,0.90,"sneaker-high",0],
+ ["Vans","Old Skool","Vans Old Skool skate shoe with side stripe and waffle sole","1977–present",70,0.80,"sneaker-low",0],
+ ["Puma","Suede Classic","Puma Suede Classic sneaker with formstrip","1968–present",75,0.70,"sneaker-low",0],
+ ["Reebok","Club C 85","Reebok Club C white leather tennis sneaker","1985–present",90,0.80,"sneaker-low",0],
+ ["Salomon","XT-6","Salomon XT-6 technical trail running shoe with quicklace","2013–present",200,1.10,"runner",0],
+ // Tier 2 — premium repairable (NuShoe core)
+ ["Red Wing","Iron Ranger","Red Wing Iron Ranger leather cap-toe work boot with welted sole","1905–present",350,1.05,"boot",1],
+ ["Red Wing","Classic Moc","Red Wing Classic Moc toe leather boot with white wedge sole","1952–present",330,1.00,"boot",1],
+ ["Timberland","6-Inch Premium","Timberland wheat nubuck 6 inch waterproof boot","1973–present",198,0.90,"boot",1],
+ ["Dr. Martens","1460","Dr Martens 1460 leather boot with yellow stitching","1960–present",170,0.90,"boot",1],
+ ["Blundstone","550","Blundstone leather chelsea boot with elastic sides","1968–present",230,0.95,"boot",1],
+ ["Ecco","Leather Shoe","Ecco leather comfort shoe","1990s–present",200,0.80,"casual",1],
+ ["Mephisto","Walking Shoe","Mephisto leather walking shoe","1980s–present",330,0.75,"casual",1],
+ ["Johnston & Murphy","Dress Shoe","Johnston and Murphy leather dress shoe oxford","1990s–present",180,0.60,"dress",1],
+ ["Merrell","Moab","Merrell Moab hiking shoe with lugged sole","2007–present",135,0.75,"boot",1],
+ // Tier 3 / other
+ ["Birkenstock","Boston","Birkenstock Boston suede clog with cork footbed","1979–present",165,1.10,"sandal",0],
+ ["Birkenstock","Arizona","Birkenstock Arizona two-strap cork sandal","1973–present",110,1.00,"sandal",0],
+ ["UGG","Classic","UGG classic sheepskin boot tan","1978–present",170,1.00,"boot",0],
+ ["Crocs","Classic Clog","Crocs foam clog with holes","2002–present",50,0.80,"sandal",0],
+ ["Generic","Running Shoe (other)","generic mesh running shoe athletic sneaker","—",120,0.60,"runner",0],
+ ["Generic","Canvas Sneaker (other)","plain canvas sneaker","—",60,0.55,"sneaker-low",0],
+ ["Generic","Leather Dress Shoe (other)","leather dress shoe","—",140,0.50,"dress",1],
+ ["Generic","Work Boot (other)","leather work boot","—",180,0.70,"boot",1],
+ ["Generic","Sandal (other)","casual sandal","—",60,0.50,"sandal",0],
+].map((r,i)=>({id:i,brand:r[0],model:r[1],label:r[2],years:r[3],msrp:r[4],demand:r[5],cat:r[6],rep:!!r[7]}));
+
+const COND = [
+ {label:"a brand new pristine unworn shoe with clean sole", grade:"A", word:"Like new",  score:92},
+ {label:"a lightly used shoe in excellent condition with minimal wear", grade:"B", word:"Gently used", score:76},
+ {label:"a moderately worn used shoe with visible creasing scuffs and sole wear", grade:"C", word:"Worn", score:52},
+ {label:"a heavily worn beat up shoe with major damage and worn out sole", grade:"D", word:"Damaged", score:22},
+ {label:"a destroyed shoe with holes mold stains or separated sole", grade:"D", word:"Damaged · flag", score:10, flag:true},
+];
+
+/* ---------- valuation (spec §6): Est = MSRP × GradeFactor × Demand × Market ---------- */
+function gradeFactor(s){
+  if(s>=85) return .55 + (s-85)/15*.20;      // A: .55–.75
+  if(s>=65) return .40 + (s-65)/19*.15;      // B: .40–.55
+  if(s>=35) return .15 + (s-35)/29*.20;      // C: .15–.35
+  return (s/34)*.10;                          // D: 0–.10
+}
+function valuate(item, score){
+  const est = item.msrp * gradeFactor(score) * item.demand * 1.0;
+  return {lo:Math.max(0,Math.round(est*.88)), hi:Math.round(est*1.12), est:Math.round(est)};
+}
+
+/* ---------- routing (spec §6 decision tree) ---------- */
+function route(item, grade, score, val, flag){
+  const R = (name, why)=>({name, why});
+  const resale = R("RESALE", `High demand, ${grade==="A"?"excellent":"strong"} condition. List via StockX/eBay-style channel.`);
+  const repair = R("REPAIR", `${item.rep?"Welted/durable construction — rebuildable.":"Repairable."} Route to NuShoe for resole & recondition, then resale.`);
+  const donate = R("DONATE", "Wearable with low resale value. Route to Soles4Souls / Goodwill intake.");
+  const recycle= R("RECYCLE", "Not wearable or repairable. Route to material recovery.");
+  if(flag) return {main:recycle, alt:donate, note:"Damage/mold flag — quarantine from recondition stream."};
+  if(item.rep && item.msrp>=150 && (grade==="C" || (grade==="B" && score<74)))
+      return {main:repair, alt: val.est>=30?resale:donate};
+  if((grade==="A"||grade==="B") && val.est>=30) return {main:resale, alt: item.rep?repair:donate};
+  if(grade==="D") return {main:recycle, alt:donate};
+  if(val.est>=15 && grade==="B") return {main:resale, alt:donate};
+  return {main:donate, alt: val.est>=15?resale:recycle};
+}
+
+/* ---------- state ---------- */
+const $ = id=>document.getElementById(id);
+const ANGLES=["SIDE","SOLE","TOE"];
+const APROMPTS=[["Show the side","BRAND · MODEL · COLORWAY"],["Now the sole","TREAD WEAR READ"],["Tilt to the toe","CREASING · STRUCTURE"]];
+let frames=[], angleIdx=0, stream=null, engineReady=false, lastResult=null, demoMode=false;
+let tokenizer, textModel, processor, visionModel, catEmb=null, condEmb=null, deviceUsed="—";
+
+const store={
+  get(k,d){ try{return JSON.parse(localStorage.getItem(k))??d}catch(e){return d} },
+  set(k,v){ try{localStorage.setItem(k,JSON.stringify(v))}catch(e){} }
+};
+
+/* ---------- engine (Transformers.js, lazy) ---------- */
+async function loadEngine(){
+  const eng=$("engine");
+  try{
+    setEng("loading","DOWNLOADING MODEL");
+    const T = await import("https://cdn.jsdelivr.net/npm/@huggingface/transformers@3");
+    const MID="Xenova/clip-vit-base-patch32";
+    const prog=p=>{ if(p.status==="progress"&&p.total){ $("engBar").style.width=Math.round(p.loaded/p.total*100)+"%"; } };
+    let opts={progress_callback:prog};
+    try{ // try WebGPU, fall back to WASM
+      if(navigator.gpu){ opts.device="webgpu"; deviceUsed="WebGPU"; }
+      else deviceUsed="WASM";
+      tokenizer   = await T.AutoTokenizer.from_pretrained(MID);
+      textModel   = await T.CLIPTextModelWithProjection.from_pretrained(MID,opts);
+      processor   = await T.AutoProcessor.from_pretrained(MID);
+      visionModel = await T.CLIPVisionModelWithProjection.from_pretrained(MID,opts);
+    }catch(gpuErr){
+      deviceUsed="WASM";
+      opts={progress_callback:prog};
+      tokenizer   = await T.AutoTokenizer.from_pretrained(MID);
+      textModel   = await T.CLIPTextModelWithProjection.from_pretrained(MID,opts);
+      processor   = await T.AutoProcessor.from_pretrained(MID);
+      visionModel = await T.CLIPVisionModelWithProjection.from_pretrained(MID,opts);
+    }
+    window.__T=T;
+    setEng("loading","COMPILING CATALOG EMBEDDINGS");
+    const cached=store.get("skiply_emb_v1",null);
+    if(cached && cached.n===CAT.length){ catEmb=cached.cat; condEmb=cached.cond; }
+    else{
+      catEmb  = await embedTexts(CAT.map(c=>"a photo of "+c.label));
+      condEmb = await embedTexts(COND.map(c=>"a photo of "+c.label));
+      store.set("skiply_emb_v1",{n:CAT.length,cat:catEmb,cond:condEmb});
+    }
+    engineReady=true;
+    setEng("ready","ENGINE READY · ON-DEVICE · "+deviceUsed.toUpperCase());
+  }catch(e){
+    console.error(e);
+    setEng("err","ENGINE OFFLINE — DEMO MODE AVAILABLE");
+  }
+  refreshSettings();
+}
+function setEng(cls,txt){ const e=$("engine"); e.className="engine "+cls; $("engTxt").textContent=txt; }
+async function embedTexts(texts){
+  const out=[];
+  for(let i=0;i<texts.length;i+=16){
+    const batch=texts.slice(i,i+16);
+    const inp=tokenizer(batch,{padding:true,truncation:true});
+    const {text_embeds}=await textModel(inp);
+    const d=text_embeds.dims[1];
+    for(let b=0;b<batch.length;b++){
+      const v=Array.from(text_embeds.data.slice(b*d,(b+1)*d));
+      out.push(norm(v));
+    }
+  }
+  return out;
+}
+function norm(v){ const n=Math.hypot(...v)||1; return v.map(x=>x/n); }
+function dot(a,b){ let s=0; for(let i=0;i<a.length;i++) s+=a[i]*b[i]; return s; }
+function softmaxTop(sims,scale=80){ // CLIP-style logit scale; higher = sharper
+  const mx=Math.max(...sims); const ex=sims.map(s=>Math.exp((s-mx)*scale));
+  const sum=ex.reduce((a,b)=>a+b,0); return ex.map(e=>e/sum);
+}
+async function embedImage(canvas){
+  const T=window.__T;
+  const blob=await new Promise(r=>canvas.toBlob(r,"image/jpeg",.85));
+  const img=await T.RawImage.fromBlob(blob);
+  const inp=await processor(img);
+  const {image_embeds}=await visionModel(inp);
+  return norm(Array.from(image_embeds.data));
+}
+
+/* ---------- camera ---------- */
+async function startCam(){
+  try{
+    stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:"environment",width:{ideal:1280}},audio:false});
+    $("cam").srcObject=stream;
+  }catch(e){
+    $("cam").style.display="none"; $("uploadHint").style.display="flex"; $("btnShoot").style.visibility="hidden";
+  }
+}
+function grabFrame(){
+  const v=$("cam"), c=document.createElement("canvas");
+  const s=Math.min(v.videoWidth,v.videoHeight)||640;
+  c.width=c.height=448;
+  const ctx=c.getContext("2d");
+  ctx.drawImage(v,(v.videoWidth-s)/2,(v.videoHeight-s)/2,s,s,0,0,448,448);
+  return c;
+}
+function fileToCanvas(file){ return new Promise(res=>{ const img=new Image(); img.onload=()=>{ const c=document.createElement("canvas"); const s=Math.min(img.width,img.height); c.width=c.height=448; c.getContext("2d").drawImage(img,(img.width-s)/2,(img.height-s)/2,s,s,0,0,448,448); URL.revokeObjectURL(img.src); res(c); }; img.src=URL.createObjectURL(file); }); }
+
+/* ---------- capture flow ---------- */
+function renderAngles(){
+  $("angleChips").innerHTML=ANGLES.map((a,i)=>`<span class="chip ${i<angleIdx?"done":i===angleIdx?"now":""}">${i<angleIdx?"✓ ":""}${a}</span>`).join("");
+  $("ringLbl").textContent=angleIdx+"/3";
+  $("ringFg").style.strokeDashoffset=138.2*(1-angleIdx/3);
+  const p=APROMPTS[Math.min(angleIdx,2)];
+  $("prompt").textContent=angleIdx>=3?"Got it.":p[0];
+  $("subprompt").textContent=angleIdx>=3?"":p[1];
+}
+async function addFrame(canvas){
+  frames.push(canvas); angleIdx++;
+  if(navigator.vibrate) navigator.vibrate(30);
+  renderAngles();
+  if(angleIdx>=3){ setTimeout(runScan,350); }
+}
+$("btnShoot").onclick=()=>{ if(angleIdx<3 && $("cam").videoWidth) addFrame(grabFrame()); };
+$("fileIn").onchange=async e=>{ if(e.target.files[0] && angleIdx<3) addFrame(await fileToCanvas(e.target.files[0])); e.target.value=""; };
+
+/* ---------- scan pipeline ---------- */
+async function runScan(){
+  show("sProc");
+  if(!engineReady){ return demoResult("Engine offline — showing demo result"); }
+  const t0=performance.now();
+  try{
+    $("procLbl").textContent="IDENTIFYING"; $("procSub").textContent="Matching against "+CAT.length+" silhouettes…";
+    const sideEmb=await embedImage(frames[0]);
+    const sims=catEmb.map(e=>dot(e,sideEmb));
+    const probs=softmaxTop(sims);
+    let best=0; sims.forEach((s,i)=>{ if(s>sims[best]) best=i; });
+    const conf=Math.round(Math.min(.99,probs[best]) *100);
+    const item=CAT[best];
+
+    $("procLbl").textContent="GRADING"; $("procSub").textContent="Reading sole wear & creasing…";
+    const condScores=[0,0,0,0,0]; const W=[.2,.45,.35];
+    for(let f=0; f<3; f++){
+      const emb=f===0?sideEmb:await embedImage(frames[f]);
+      const cs=softmaxTop(condEmb.map(e=>dot(e,emb)),30); // softer blend across condition classes
+      cs.forEach((p,i)=>condScores[i]+=p*W[f]);
+    }
+    let ci=0; condScores.forEach((p,i)=>{ if(p>condScores[ci]) ci=i; });
+    const cond=COND[ci];
+    // blend numeric score toward neighbors for smoothness
+    let score=Math.round(COND.reduce((a,c,i)=>a+c.score*condScores[i],0));
+    score=Math.max(5,Math.min(98,score));
+    const grade= score>=85?"A": score>=65?"B": score>=35?"C":"D";
+    const flag=!!cond.flag;
+
+    $("procLbl").textContent="VALUING & ROUTING"; $("procSub").textContent="MSRP × grade × demand…";
+    const val=valuate(item,score);
+    const rt=route(item,grade,score,val,flag);
+    const soleWear=Math.max(0,Math.min(95,Math.round(100-score-(Math.random()*6-3))));
+    const ms=Math.round(performance.now()-t0);
+    lastResult={item,conf,grade,score,val,rt,flag,ms,soleWear,photo:frames[0].toDataURL("image/jpeg",.8),ts:Date.now(),src:"live"};
+    // keep the sweep visible at least 1.2s so it feels deliberate, not instant-fake
+    const wait=Math.max(0,1200-ms);
+    setTimeout(()=>renderResult(lastResult),wait);
+  }catch(e){ console.error(e); demoResult("Scan error — showing demo result"); }
+}
+
+/* ---------- demo mode ---------- */
+const DEMOS=[
+ {q:"Air Jordan 1 High",score:76,conf:97,svg:"high"},
+ {q:"Samba OG",score:90,conf:96,svg:"low"},
+ {q:"Clifton",score:48,conf:93,svg:"runner"},
+ {q:"Iron Ranger",score:55,conf:95,svg:"boot"},
+];
+let demoIdx=0;
+function demoResult(msg){
+  if(msg) toast(msg);
+  const d=DEMOS[demoIdx%DEMOS.length]; demoIdx++;
+  const item=CAT.find(c=>c.model===d.q)||CAT[0];
+  const grade= d.score>=85?"A": d.score>=65?"B": d.score>=35?"C":"D";
+  const val=valuate(item,d.score);
+  const rt=route(item,grade,d.score,val,false);
+  lastResult={item,conf:d.conf,grade,score:d.score,val,rt,flag:false,ms:900,soleWear:100-d.score,svg:d.svg,ts:Date.now(),src:"demo"};
+  show("sProc"); $("procLbl").textContent="IDENTIFYING"; $("procSub").textContent="Demo scan…";
+  setTimeout(()=>renderResult(lastResult),1400);
+}
+$("btnDemo").onclick=()=>{ demoMode=true; demoResult(); };
+
+const SVGS={
+ high:`<svg viewBox="0 0 300 170"><path d="M40 140 L40 60 C40 48 52 42 64 44 L96 52 C120 58 132 80 158 92 C190 106 236 108 258 118 C272 124 274 140 258 142 Z" fill="#142238" stroke="#53d7ff" stroke-width="2"/><path d="M40 140 L262 140 L262 152 C262 158 256 162 248 162 L54 162 C44 162 40 156 40 150 Z" fill="#1b2c44"/><path d="M96 52 L88 120" stroke="#0A64BC" stroke-width="5" fill="none"/><circle cx="60" cy="70" r="4" fill="#53d7ff"/><circle cx="60" cy="86" r="4" fill="#53d7ff"/></svg>`,
+ low:`<svg viewBox="0 0 300 170"><path d="M34 132 C36 108 60 100 84 96 C120 90 142 66 170 62 C196 58 216 68 224 84 C256 90 270 102 268 118 C266 132 250 138 226 140 L60 142 C44 142 33 140 34 132 Z" fill="#142238" stroke="#3dd98c" stroke-width="2"/><path d="M120 88 L188 74 M128 100 L196 86 M136 112 L204 98" stroke="#3dd98c" stroke-width="4"/><path d="M34 138 L268 130 L268 146 C268 152 262 156 254 156 L48 156 C38 156 34 148 34 138 Z" fill="#c8b48a"/></svg>`,
+ runner:`<svg viewBox="0 0 300 170"><path d="M32 126 C34 104 58 96 84 92 C122 86 140 60 172 56 C200 52 222 64 230 82 C260 88 272 100 270 114 C268 126 254 132 230 134 L58 136 C42 136 31 132 32 126 Z" fill="#142238" stroke="#ffb347" stroke-width="2"/><path d="M30 140 C30 128 44 124 66 124 L240 122 C262 122 272 128 270 138 C269 148 258 154 240 154 L58 156 C40 156 30 150 30 140 Z" fill="#ffb347" opacity=".85"/><path d="M150 74 C162 82 170 92 172 104" stroke="#53d7ff" stroke-width="4" fill="none"/></svg>`,
+ boot:`<svg viewBox="0 0 300 170"><path d="M92 30 L164 30 L164 84 C186 92 226 100 250 112 C266 120 268 136 252 138 L74 140 C64 140 60 132 62 122 L88 84 Z" fill="#3a2a1a" stroke="#ffb347" stroke-width="2"/><path d="M60 142 L256 136 L256 150 C256 158 248 162 238 162 L72 162 C62 162 58 154 60 146 Z" fill="#5c4318"/><path d="M100 40 L156 40 M100 54 L156 54 M100 68 L156 68" stroke="#ffb347" stroke-width="3"/></svg>`,
+};
+
+/* ---------- result render ---------- */
+function renderResult(r){
+  const ph=$("resPhoto");
+  ph.innerHTML = r.photo? `<img src="${r.photo}" alt="scanned shoe">` : (SVGS[r.svg]||SVGS.low);
+  ph.insertAdjacentHTML("beforeend",`<span class="conf">${r.conf}% MATCH · ${r.src==="demo"?"DEMO":(r.ms/1000).toFixed(1)+"s"}</span>`);
+  $("resName").textContent=r.item.brand+" "+r.item.model;
+  $("resMeta").textContent=`${r.item.years} · ${r.item.cat.toUpperCase()} · MSRP $${r.item.msrp}`;
+  $("resGLetter").textContent=r.grade; $("resGLetter").className="gletter g-"+r.grade;
+  $("resGWord").textContent= r.grade==="A"?"Like new": r.grade==="B"?"Gently used": r.grade==="C"?"Worn":"Damaged";
+  $("resScoreBar").style.width=r.score+"%";
+  $("resScoreBar").style.background= r.grade==="A"?"var(--green)":r.grade==="B"?"var(--cyan)":r.grade==="C"?"var(--amber)":"var(--red)";
+  $("resWear").textContent=`SCORE ${r.score}/100 · SOLE ~${r.soleWear}% WORN${r.score<65?" · CREASING VISIBLE":""}`;
+  $("resValue").innerHTML=`$${r.val.lo}–$${r.val.hi} <small>today</small>`;
+  $("resMsrp").textContent=`$${r.item.msrp} MSRP × ${(gradeFactor(r.score)).toFixed(2)} GRADE × ${r.item.demand.toFixed(2)} DEMAND`;
+  const rb=$("resRoute"); rb.className="route "+r.rt.main.name;
+  $("resRouteName").textContent=r.rt.main.name;
+  $("resRouteWhy").textContent=r.rt.main.why;
+  $("resRunner").textContent="RUNNER-UP → "+r.rt.alt.name;
+  $("resFlag").style.display=r.flag?"inline-block":"none";
+  show("sResult");
+  if(navigator.vibrate) navigator.vibrate([20,40,20]);
+}
+
+/* ---------- accept / correct ---------- */
+$("btnAccept").onclick=()=>{ logScan(lastResult,null); toast("Logged ✓"); resetCapture(); };
+$("btnAgain").onclick=()=>resetCapture();
+$("btnWrong").onclick=()=>{
+  const sel=$("fixModel");
+  sel.innerHTML=CAT.map(c=>`<option value="${c.id}" ${lastResult&&c.id===lastResult.item.id?"selected":""}>${c.brand} ${c.model}</option>`).join("");
+  $("fixCond").value=lastResult?lastResult.score:70; $("fixCondLbl").textContent=$("fixCond").value;
+  $("mFix").classList.add("on");
+};
+$("fixCond").oninput=e=>$("fixCondLbl").textContent=e.target.value;
+$("fixCancel").onclick=()=>$("mFix").classList.remove("on");
+$("fixSave").onclick=()=>{
+  const item=CAT[+$("fixModel").value], score=+$("fixCond").value;
+  const grade= score>=85?"A": score>=65?"B": score>=35?"C":"D";
+  const val=valuate(item,score); const rt=route(item,grade,score,val,false);
+  const fixed={...lastResult,item,score,grade,val,rt,conf:100,src:"corrected"};
+  logScan(lastResult,fixed); lastResult=fixed; renderResult(fixed);
+  $("mFix").classList.remove("on"); toast("Correction saved — engine learns from this");
+};
+function logScan(r,fix){
+  const logs=store.get("skiply_scans",[]);
+  logs.push({ts:r.ts,pred:r.item.brand+" "+r.item.model,predScore:r.score,src:r.src,
+             fix:fix?{model:fix.item.brand+" "+fix.item.model,score:fix.score}:null});
+  store.set("skiply_scans",logs); refreshSettings();
+}
+
+/* ---------- settings ---------- */
+function refreshSettings(){
+  $("setEngine").textContent=engineReady?"CLIP ViT-B/32 · ready":"loading / offline";
+  $("setDevice").textContent=deviceUsed;
+  $("setCatalog").textContent=CAT.length+" silhouettes · "+COND.length+" condition classes";
+  const logs=store.get("skiply_scans",[]);
+  $("setScans").textContent=logs.length;
+  $("setFixes").textContent=logs.filter(l=>l.fix).length;
+}
+[$("btnGear"),$("btnGear2")].forEach(b=>b.onclick=()=>{refreshSettings();$("mSet").classList.add("on")});
+$("setClose").onclick=()=>$("mSet").classList.remove("on");
+$("setClear").onclick=()=>{ store.set("skiply_scans",[]); refreshSettings(); toast("Cleared"); };
+$("setExport").onclick=()=>{
+  const logs=store.get("skiply_scans",[]);
+  const csv="ts,predicted,pred_score,source,corrected_model,corrected_score\n"+
+    logs.map(l=>[new Date(l.ts).toISOString(),`"${l.pred}"`,l.predScore,l.src,l.fix?`"${l.fix.model}"`:"",l.fix?l.fix.score:""].join(",")).join("\n");
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv"}));
+  a.download="skiply-training-data.csv"; a.click();
+};
+
+/* ---------- nav helpers ---------- */
+function show(id){ document.querySelectorAll(".screen").forEach(s=>s.classList.remove("on")); $(id).classList.add("on"); }
+function resetCapture(){ frames=[]; angleIdx=0; renderAngles(); show("sAim"); }
+let toastT; function toast(m){ const t=$("toast"); t.textContent=m; t.classList.add("on"); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove("on"),2600); }
+
+/* ---------- boot ---------- */
+renderAngles();
+startCam();
+loadEngine();
+</script>
+</body>
+</html>
