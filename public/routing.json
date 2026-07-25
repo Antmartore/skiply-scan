@@ -1,0 +1,39 @@
+{
+  "format": "skiply-routing/1",
+  "updated": "2026-07-25",
+  "geography": {
+    "region": "US",
+    "note": "Partner set for US pilots; add regional partners per geography as pilots expand."
+  },
+  "market_factor": 1.0,
+  "thresholds": {
+    "resale_min_value": 30,
+    "resale_min_value_b": 15,
+    "repair_min_msrp": 150,
+    "repair_b_score_below": 74
+  },
+  "channels": {
+    "RESALE": {
+      "partners": [
+        { "name": "StockX-style marketplace" },
+        { "name": "eBay" }
+      ]
+    },
+    "REPAIR": {
+      "partners": [
+        { "name": "NuShoe", "location": "San Diego, CA" }
+      ]
+    },
+    "DONATE": {
+      "partners": [
+        { "name": "Soles4Souls" },
+        { "name": "Goodwill" }
+      ]
+    },
+    "RECYCLE": {
+      "partners": [
+        { "name": "Material recovery" }
+      ]
+    }
+  }
+}
