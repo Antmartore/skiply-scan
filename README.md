@@ -2,22 +2,26 @@
 
 Point a phone at a shoe. In seconds: what it is, what it's worth, where it goes. All AI runs on-device — no API keys, no per-scan cost, works offline after first load.
 
-## Run it (2 minutes)
+**IDENTIFY · VALUE · ROUTE**
 
-The camera needs HTTPS or localhost, so serve the file rather than double-clicking it:
+## Develop & build
 
-**Option A — local test right now**
+The app is a Vite project (vanilla JS, no framework) that builds to a fully static bundle.
+
+```bash
+npm install
+npm run dev        # local dev server (camera needs HTTPS or localhost)
+npm run build      # static bundle → dist/
+npm run preview    # serve the built bundle locally
 ```
-cd "path/to/Skiply/MVP"
-npx serve .        # or: python3 -m http.server 8000
-```
-Open the printed URL. On your phone, use the same wifi and visit your laptop's IP (e.g. http://192.168.1.20:8000).
 
-**Option B — free public link (share with clients)**
-1. Create a GitHub account if needed → github.com → New repository → name it `skiply-scan` → Public → Create.
-2. On the repo page: "uploading an existing file" → drag `index.html` in → Commit.
-3. Repo Settings → Pages → Source: "Deploy from a branch" → Branch: `main` → Save.
-4. Two minutes later your app is live at `https://<username>.github.io/skiply-scan/` — that's the link clients open to scan their own shoes.
+To test on your phone during development: `npm run dev -- --host`, then open your laptop's LAN IP on the same wifi. (Camera access over plain HTTP works only on localhost — for LAN testing either use the Upload photo fallback or a tunnel like `npx localtunnel`.)
+
+## Deploy (GitHub Pages)
+
+Pushes to `main` build and deploy `dist/` automatically via `.github/workflows/deploy.yml`.
+
+One-time setup: repo **Settings → Pages → Source: "GitHub Actions"** (not "Deploy from a branch"). The live URL is `https://<username>.github.io/skiply-scan/`. The build uses a relative base path, so the same bundle also deploys unchanged to Vercel or any static host later.
 
 ## Before the NuShoe pitch — checklist
 
@@ -34,4 +38,19 @@ Open the printed URL. On your phone, use the same wifi and visit your laptop's I
 - **Route** — decision tree → RESALE / REPAIR (NuShoe) / DONATE (Soles4Souls, Goodwill) / RECYCLE, with runner-up.
 - **Training flywheel** — every "Not right?" correction is logged; Settings → Export CSV is your labeled training data.
 
-Full roadmap: `Skiply_MVP_Build_Plan.md`. Handoff prompt for Claude Code: `CLAUDE_CODE_PROMPT.md`.
+## Code map
+
+```
+index.html            app shell markup (screens, sheets)
+src/main.js           UI wiring: capture flow, scan pipeline, results, settings
+src/engine.js         on-device CLIP engine (Transformers.js, WebGPU→WASM)
+src/catalog.js        55-silhouette catalog + condition classes
+src/valuation.js      MSRP × GradeFactor × Demand × Market
+src/routing.js        RESALE / REPAIR / DONATE / RECYCLE decision tree
+src/demo.js           pitch demo scans + result illustrations
+src/store.js          localStorage helper
+src/styles.css        Skiply brand system (navy void, mono data labels)
+.github/workflows/    GitHub Pages deploy on push to main
+```
+
+Full roadmap: `Skiply_MVP_Build_Plan.md`. Original handoff prompt: `CLAUDE_CODE_PROMPT.md`.
