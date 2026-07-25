@@ -137,6 +137,19 @@
   </div>
 </div>
 
+<!-- passcode gate (?gated=1) -->
+<div class="gate" id="sGate">
+  <div class="gatebox">
+    <div class="wordmark"><svg width="26" height="20" viewBox="0 0 36 26"><path d="M2 20 L16 6 L27 17" stroke="#0A64BC" stroke-width="5.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>SKIPLY</div>
+    <div class="tagline">IDENTIFY · VALUE · ROUTE</div>
+    <div class="klabel" style="margin-top:28px">ACCESS CODE</div>
+    <input id="gateCode" maxlength="8" autocomplete="one-time-code" autocapitalize="characters" inputmode="text" placeholder="••••••" spellcheck="false">
+    <button class="btn primary" id="gateGo">Unlock</button>
+    <div class="gatemsg" id="gateMsg"></div>
+    <div class="gatefoot">SINGLE-USE CODE · 1-HOUR SESSION · PILOT ACCESS</div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script type="module" src="/src/main.js"></script>

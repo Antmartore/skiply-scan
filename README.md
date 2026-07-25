@@ -48,6 +48,17 @@ python3 scripts/build_reference_db.py \
 
 When `refdb.json` is deployed, the app matches scans against reference photos (result shows **colorway + year**, conf chip shows `REF`) and the correction sheet lists refdb products. No refdb → text zero-shot, exactly as before. If the refdb's model can't load in a browser, the app drops the refdb and falls back — shipping a refdb can never break scanning.
 
+## Pilot access codes (optional gate)
+
+For gated client pilots, share the app as `…?gated=1` — it opens on a Skiply-branded access screen instead of the camera.
+
+```bash
+python3 scripts/gen_codes.py --count 10 --ttl-hours 24
+git add public/codes.json && git commit -m "new pilot codes" && git push   # deploy the hashes
+```
+
+The plaintext 6-character codes print **once** to your terminal (text them to clients); only salted PBKDF2 hashes ship in `public/codes.json`. Each code: single-use per device, redeemable until its expiry, unlocks a **1-hour session**. Wrong/expired/used codes are rejected on-device — no server involved. Regenerate + redeploy to revoke all outstanding codes. The normal URL (no `?gated=1`) stays open for your own demos.
+
 ## Before the NuShoe pitch — checklist
 
 1. Open the live link on your demo phone **on wifi once** — this downloads the model (~90MB, one time) and caches it.
@@ -75,11 +86,13 @@ src/valuation.js      MSRP × GradeFactor × Demand × Market
 src/routing.js        RESALE / REPAIR / DONATE / RECYCLE decision tree
 src/demo.js           pitch demo scans + result illustrations
 src/telemetry.js      IndexedDB scan log + zip training-set export
+src/gate.js           ?gated=1 passcode gate (PBKDF2 check, 1h session)
 src/store.js          localStorage helper
 src/styles.css        Skiply brand system (navy void, mono data labels)
 public/               static assets: favicon, PWA icons
 scripts/gen_icons.py  renders PWA icons from the SVG wordmark
 scripts/build_reference_db.py   embeds product photos → public/refdb.json
+scripts/gen_codes.py  mints pilot access codes → public/codes.json
 .github/workflows/    GitHub Pages deploy on push to main
 ```
 

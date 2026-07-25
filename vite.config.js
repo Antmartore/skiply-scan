@@ -34,6 +34,16 @@ export default defineConfig({
         navigateFallback: "index.html",
         runtimeCaching: [
           {
+            // deploy-time data files (codes.json, routing.json, refdb.json):
+            // fresh when online, cached copy when offline
+            urlPattern: ({ url, sameOrigin }) => sameOrigin && url.pathname.endsWith(".json"),
+            handler: "NetworkFirst",
+            options: {
+              cacheName: "skiply-data",
+              networkTimeoutSeconds: 4,
+            },
+          },
+          {
             // Transformers.js runtime + onnxruntime-web wasm from jsdelivr
             urlPattern: /^https:\/\/cdn\.jsdelivr\.net\/.*/i,
             handler: "CacheFirst",

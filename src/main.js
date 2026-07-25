@@ -9,6 +9,7 @@ import { DEMOS, SVGS } from "./demo.js";
 import { engine, loadEngine, embedImage, dot, softmaxTop } from "./engine.js";
 import { matchRefdb } from "./refdb.js";
 import { addScan, scanCounts, clearScans, exportTrainingZip, migrateFromLocalStorage } from "./telemetry.js";
+import { initGate } from "./gate.js";
 
 /* Map a refdb product to the catalog item shape (valuation + routing need
    msrp/demand/cat/rep). Inherits category/repairable from the closest
@@ -254,6 +255,7 @@ function resetCapture(){ frames=[]; angleIdx=0; renderAngles(); show("sAim"); }
 let toastT; function toast(m){ const t=$("toast"); t.textContent=m; t.classList.add("on"); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove("on"),2600); }
 
 /* ---------- boot ---------- */
+initGate();   // no-op unless ?gated=1; engine keeps loading behind the gate
 renderAngles();
 startCam();
 bootEngine();
