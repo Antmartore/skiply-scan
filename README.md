@@ -61,7 +61,7 @@ When `refdb.json` is deployed, the app matches scans against reference photos (r
 - **Grade** — 3-angle guided capture (side/sole/toe, Face ID-style), condition classes → A/B/C/D + 0–100 score.
 - **Value** — `MSRP × GradeFactor × BrandDemand × Market` per the Skiply spec, shown as a today range.
 - **Route** — decision tree → RESALE / REPAIR (NuShoe) / DONATE (Soles4Souls, Goodwill) / RECYCLE, with runner-up.
-- **Training flywheel** — every "Not right?" correction is logged; Settings → Export CSV is your labeled training data.
+- **Training flywheel** — every scan and "Not right?" correction is logged to IndexedDB **with the captured frames as JPEGs**. Settings → *Export zip* downloads the full training set: `scans.json` + `scans.csv` + `frames/*.jpg` — labeled photos ready for fine-tuning (Stage 3). Logs from older versions migrate automatically.
 
 ## Code map
 
@@ -74,6 +74,7 @@ src/refdb.js          reference-image DB decode + nearest-photo matching
 src/valuation.js      MSRP × GradeFactor × Demand × Market
 src/routing.js        RESALE / REPAIR / DONATE / RECYCLE decision tree
 src/demo.js           pitch demo scans + result illustrations
+src/telemetry.js      IndexedDB scan log + zip training-set export
 src/store.js          localStorage helper
 src/styles.css        Skiply brand system (navy void, mono data labels)
 public/               static assets: favicon, PWA icons

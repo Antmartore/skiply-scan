@@ -5,10 +5,10 @@ import "./styles.css";
 import { CAT, COND } from "./catalog.js";
 import { gradeFactor, valuate } from "./valuation.js";
 import { route } from "./routing.js";
-import { store } from "./store.js";
 import { DEMOS, SVGS } from "./demo.js";
 import { engine, loadEngine, embedImage, dot, softmaxTop } from "./engine.js";
 import { matchRefdb } from "./refdb.js";
+import { addScan, scanCounts, clearScans, exportTrainingZip, migrateFromLocalStorage } from "./telemetry.js";
 
 /* Map a refdb product to the catalog item shape (valuation + routing need
    msrp/demand/cat/rep). Inherits category/repairable from the closest
@@ -198,11 +198,27 @@ $("fixSave").onclick=()=>{
   logScan(lastResult,fixed); lastResult=fixed; renderResult(fixed);
   $("mFix").classList.remove("on"); toast("Correction saved — engine learns from this");
 };
-function logScan(r,fix){
-  const logs=store.get("skiply_scans",[]);
-  logs.push({ts:r.ts,pred:nameOf(r.item),predScore:r.score,src:r.src,
-             fix:fix?{model:nameOf(fix.item),score:fix.score}:null});
-  store.set("skiply_scans",logs); refreshSettings();
+async function framesToBlobs(){
+  const names=["side","sole","toe"];
+  const out=[];
+  for(let i=0;i<frames.length&&i<3;i++){
+    const blob=await new Promise(r=>frames[i].toBlob(r,"image/jpeg",.85));
+    if(blob) out.push({angle:names[i],blob});
+  }
+  return out;
+}
+async function logScan(r,fix){
+  try{
+    await addScan({
+      ts:r.ts, src:r.src, pred:nameOf(r.item), predScore:r.score, conf:r.conf,
+      grade:r.grade, valueLo:r.val.lo, valueHi:r.val.hi, route:r.rt.main.name,
+      colorway:r.item.colorway||null, year:r.ref?.year||null,
+      model:engine.modelId, device:engine.device,
+      fix:fix?{model:nameOf(fix.item),score:fix.score}:null,
+      frames:r.src==="demo"?[]:await framesToBlobs(),
+    });
+  }catch(e){ console.warn("scan log failed",e); }
+  refreshSettings();
 }
 
 /* ---------- settings ---------- */
@@ -212,20 +228,24 @@ function refreshSettings(){
   $("setCatalog").textContent=engine.refdb
     ? `ref db: ${engine.refdb.products.length} products · ${engine.refdb.n} photos`
     : CAT.length+" silhouettes · "+COND.length+" condition classes";
-  const logs=store.get("skiply_scans",[]);
-  $("setScans").textContent=logs.length;
-  $("setFixes").textContent=logs.filter(l=>l.fix).length;
+  scanCounts().then(c=>{
+    $("setScans").textContent=c.scans;
+    $("setFixes").textContent=c.fixes;
+  }).catch(()=>{});
 }
 [$("btnGear"),$("btnGear2")].forEach(b=>b.onclick=()=>{refreshSettings();$("mSet").classList.add("on")});
 $("setClose").onclick=()=>$("mSet").classList.remove("on");
-$("setClear").onclick=()=>{ store.set("skiply_scans",[]); refreshSettings(); toast("Cleared"); };
-$("setExport").onclick=()=>{
-  const logs=store.get("skiply_scans",[]);
-  const csv="ts,predicted,pred_score,source,corrected_model,corrected_score\n"+
-    logs.map(l=>[new Date(l.ts).toISOString(),`"${l.pred}"`,l.predScore,l.src,l.fix?`"${l.fix.model}"`:"",l.fix?l.fix.score:""].join(",")).join("\n");
-  const a=document.createElement("a");
-  a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv"}));
-  a.download="skiply-training-data.csv"; a.click();
+$("setClear").onclick=async()=>{ await clearScans().catch(()=>{}); refreshSettings(); toast("Cleared"); };
+$("setExport").onclick=async()=>{
+  try{
+    toast("Building training set…");
+    const blob=await exportTrainingZip();
+    if(!blob){ toast("No scans logged yet"); return; }
+    const a=document.createElement("a");
+    a.href=URL.createObjectURL(blob);
+    a.download="skiply-training-set.zip"; a.click();
+    setTimeout(()=>URL.revokeObjectURL(a.href),30000);
+  }catch(e){ console.error(e); toast("Export failed"); }
 };
 
 /* ---------- nav helpers ---------- */
@@ -237,6 +257,7 @@ let toastT; function toast(m){ const t=$("toast"); t.textContent=m; t.classList.
 renderAngles();
 startCam();
 bootEngine();
+migrateFromLocalStorage().then(refreshSettings).catch(()=>{});
 
 /* ---------- PWA: offline shell + model cache ---------- */
 import { registerSW } from "virtual:pwa-register";
