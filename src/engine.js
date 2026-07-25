@@ -5,45 +5,76 @@
    ===================================================================== */
 import { CAT, COND } from "./catalog.js";
 import { store } from "./store.js";
+import { fetchRefdb, decodeRefdb } from "./refdb.js";
 
 const CDN_URL = "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1";
-const MODEL_ID = "Xenova/clip-vit-base-patch32";
+const DEFAULT_MODEL_ID = "Xenova/clip-vit-base-patch32";
+const MODEL_NAMES = {
+  "Xenova/clip-vit-base-patch32": "CLIP ViT-B/32",
+  "Marqo/marqo-fashionCLIP": "Marqo fashionCLIP",
+  "patrickjohncyh/fashion-clip": "fashionCLIP",
+};
 
-export const engine = { ready:false, device:"—", modelName:"CLIP ViT-B/32", catEmb:null, condEmb:null };
+export const engine = { ready:false, device:"—", modelId:DEFAULT_MODEL_ID, modelName:"CLIP ViT-B/32", catEmb:null, condEmb:null, refdb:null };
 
 let T, tokenizer, textModel, processor, visionModel;
 
+async function loadModels(modelId, opts){
+  tokenizer   = await T.AutoTokenizer.from_pretrained(modelId);
+  textModel   = await T.CLIPTextModelWithProjection.from_pretrained(modelId,opts);
+  processor   = await T.AutoProcessor.from_pretrained(modelId);
+  visionModel = await T.CLIPVisionModelWithProjection.from_pretrained(modelId,opts);
+}
+
 export async function loadEngine({ onStatus = ()=>{}, onProgress = ()=>{} } = {}){
   try{
+    // Reference DB (if deployed) decides which model we run, so scan and
+    // reference embeddings live in the same space. Absent → text zero-shot.
+    const refJson = await fetchRefdb(import.meta.env.BASE_URL + "refdb.json");
+
     onStatus("loading","DOWNLOADING MODEL");
     T = await import(/* @vite-ignore */ CDN_URL);
     const prog = p=>{ if(p.status==="progress"&&p.total){ onProgress(Math.round(p.loaded/p.total*100)); } };
     let opts = {progress_callback:prog};
+    let modelId = refJson?.browser_model_id || DEFAULT_MODEL_ID;
     try{ // try WebGPU, fall back to WASM
       if(navigator.gpu){ opts.device="webgpu"; engine.device="WebGPU"; }
       else engine.device="WASM";
-      tokenizer   = await T.AutoTokenizer.from_pretrained(MODEL_ID);
-      textModel   = await T.CLIPTextModelWithProjection.from_pretrained(MODEL_ID,opts);
-      processor   = await T.AutoProcessor.from_pretrained(MODEL_ID);
-      visionModel = await T.CLIPVisionModelWithProjection.from_pretrained(MODEL_ID,opts);
-    }catch(gpuErr){
-      engine.device="WASM";
-      opts={progress_callback:prog};
-      tokenizer   = await T.AutoTokenizer.from_pretrained(MODEL_ID);
-      textModel   = await T.CLIPTextModelWithProjection.from_pretrained(MODEL_ID,opts);
-      processor   = await T.AutoProcessor.from_pretrained(MODEL_ID);
-      visionModel = await T.CLIPVisionModelWithProjection.from_pretrained(MODEL_ID,opts);
+      await loadModels(modelId,opts);
+    }catch(firstErr){
+      if(modelId!==DEFAULT_MODEL_ID){
+        // refdb model unavailable in-browser — drop the refdb (embedding
+        // spaces would not match) and run the proven default.
+        console.warn("refdb model failed to load, falling back to text zero-shot:",firstErr);
+        modelId = DEFAULT_MODEL_ID;
+        try{ await loadModels(modelId,opts); }
+        catch(gpuErr){ engine.device="WASM"; await loadModels(modelId,{progress_callback:prog}); }
+      }else{
+        engine.device="WASM";
+        await loadModels(modelId,{progress_callback:prog});
+      }
     }
+    engine.modelId = modelId;
+    engine.modelName = MODEL_NAMES[modelId] || modelId;
+
     onStatus("loading","COMPILING CATALOG EMBEDDINGS");
-    const cached = store.get("skiply_emb_v1",null);
+    const embKey = "skiply_emb_v2:"+modelId; // text embeddings are model-specific
+    const cached = store.get(embKey,null);
     if(cached && cached.n===CAT.length){ engine.catEmb=cached.cat; engine.condEmb=cached.cond; }
     else{
       engine.catEmb  = await embedTexts(CAT.map(c=>"a photo of "+c.label));
       engine.condEmb = await embedTexts(COND.map(c=>"a photo of "+c.label));
-      store.set("skiply_emb_v1",{n:CAT.length,cat:engine.catEmb,cond:engine.condEmb});
+      store.set(embKey,{n:CAT.length,cat:engine.catEmb,cond:engine.condEmb});
     }
+
+    if(refJson && refJson.browser_model_id===modelId){
+      onStatus("loading","LOADING REFERENCE DB");
+      engine.refdb = decodeRefdb(refJson);
+    }
+
     engine.ready=true;
-    onStatus("ready","ENGINE READY · ON-DEVICE · "+engine.device.toUpperCase());
+    const mode = engine.refdb ? `REF DB ${engine.refdb.n} IMG` : "ON-DEVICE";
+    onStatus("ready",`ENGINE READY · ${mode} · `+engine.device.toUpperCase());
     return true;
   }catch(e){
     console.error(e);

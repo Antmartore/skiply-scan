@@ -1,0 +1,11 @@
+brand,model,colorway,year,msrp,demand,category,repairable
+Nike,Air Jordan 1 High,Chicago Lost and Found,2022,180,1.35,sneaker-high,0
+Nike,Air Jordan 1 High,Royal Reimagined,2023,180,1.35,sneaker-high,0
+Nike,Dunk Low,Panda,2021,115,1.25,sneaker-low,0
+Adidas,Samba OG,Cloud White Core Black,2018,100,1.30,sneaker-low,0
+Adidas,Samba OG,Wonder Beige,2023,100,1.30,sneaker-low,0
+New Balance,550,White Green,2020,120,1.15,sneaker-low,0
+Hoka,Clifton 9,Black White,2023,145,0.90,runner,0
+Red Wing,Iron Ranger,Amber Harness,2010,350,1.05,boot,1
+Red Wing,Iron Ranger,Charcoal Rough & Tough,2015,350,1.05,boot,1
+Birkenstock,Boston,Taupe Suede,2019,165,1.10,sandal,0

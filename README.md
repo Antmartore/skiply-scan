@@ -31,6 +31,23 @@ The app is a full PWA: the service worker precaches the app shell at first visit
 - **Install on Android:** Chrome shows an install prompt, or ⋮ → *Add to Home screen*.
 - Icons are generated from the SVG wordmark by `scripts/gen_icons.py` (Pillow) into `public/icons/`.
 
+## Reference image DB (Stage 2 — colorway-level ID)
+
+Stage 1 identifies by matching scans against *text descriptions*. Stage 2 matches against *real product photos*: colorway-level ID with year + MSRP from your own reference set.
+
+```bash
+pip install pillow numpy open_clip_torch          # or: transformers torch
+python3 scripts/build_reference_db.py \
+    --images ./reference_images --products ./products.csv
+```
+
+- Photos organized `reference_images/<brand>/<model>/<colorway>/*.jpg` (scraped product shots, StockX/eBay-style listings — 3–8 per colorway is plenty).
+- `products.csv` columns: `brand,model,colorway,year,msrp,demand` (optional `category,repairable`). Template: `scripts/products.example.csv`. Folder names match CSV rows case-insensitively.
+- Output `public/refdb.json`: int8-quantized embeddings, ~700 bytes/image → 10K images ≈ 7MB (<15MB target). Use `--dry-run` to validate the folder/CSV layout first.
+- Default embedding model is **Marqo/marqo-fashionCLIP** (best-in-class fashion retrieval; ships ONNX, so the *browser loads the same model* and embeddings share one space). Fallbacks: `--model fashion-clip`, `--model clip-b32`. Building with `clip-b32` keeps today's exact in-app model — zero added latency on older WASM phones; fashionCLIP (ViT-B/16) is heavier, fine on WebGPU.
+
+When `refdb.json` is deployed, the app matches scans against reference photos (result shows **colorway + year**, conf chip shows `REF`) and the correction sheet lists refdb products. No refdb → text zero-shot, exactly as before. If the refdb's model can't load in a browser, the app drops the refdb and falls back — shipping a refdb can never break scanning.
+
 ## Before the NuShoe pitch — checklist
 
 1. Open the live link on your demo phone **on wifi once** — this downloads the model (~90MB, one time) and caches it.
@@ -53,6 +70,7 @@ index.html            app shell markup (screens, sheets)
 src/main.js           UI wiring: capture flow, scan pipeline, results, settings
 src/engine.js         on-device CLIP engine (Transformers.js, WebGPU→WASM)
 src/catalog.js        55-silhouette catalog + condition classes
+src/refdb.js          reference-image DB decode + nearest-photo matching
 src/valuation.js      MSRP × GradeFactor × Demand × Market
 src/routing.js        RESALE / REPAIR / DONATE / RECYCLE decision tree
 src/demo.js           pitch demo scans + result illustrations
@@ -60,6 +78,7 @@ src/store.js          localStorage helper
 src/styles.css        Skiply brand system (navy void, mono data labels)
 public/               static assets: favicon, PWA icons
 scripts/gen_icons.py  renders PWA icons from the SVG wordmark
+scripts/build_reference_db.py   embeds product photos → public/refdb.json
 .github/workflows/    GitHub Pages deploy on push to main
 ```
 

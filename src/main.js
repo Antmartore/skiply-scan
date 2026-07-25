@@ -8,6 +8,24 @@ import { route } from "./routing.js";
 import { store } from "./store.js";
 import { DEMOS, SVGS } from "./demo.js";
 import { engine, loadEngine, embedImage, dot, softmaxTop } from "./engine.js";
+import { matchRefdb } from "./refdb.js";
+
+/* Map a refdb product to the catalog item shape (valuation + routing need
+   msrp/demand/cat/rep). Inherits category/repairable from the closest
+   catalog entry when the CSV didn't specify them. */
+function productToItem(p, pi){
+  const n=s=>String(s||"").toLowerCase().replace(/[\s_\-]+/g," ").trim();
+  const hit=CAT.find(c=>n(c.brand)===n(p.brand)&&(n(c.model)===n(p.model)||n(p.model).startsWith(n(c.model))||n(c.model).startsWith(n(p.model))));
+  return {
+    id:"r"+pi, brand:p.brand, model:p.model, colorway:p.colorway,
+    years:p.year||hit?.years||"—",
+    msrp:p.msrp||hit?.msrp||100,
+    demand:p.demand||hit?.demand||1.0,
+    cat:p.category||hit?.cat||"sneaker-low",
+    rep:!!(p.repairable||hit?.rep),
+  };
+}
+function nameOf(item){ return item.brand+" "+item.model+(item.colorway?" · "+item.colorway:""); }
 
 /* ---------- state ---------- */
 const $ = id=>document.getElementById(id);
@@ -68,13 +86,24 @@ async function runScan(){
   if(!engine.ready){ return demoResult("Engine offline — showing demo result"); }
   const t0=performance.now();
   try{
-    $("procLbl").textContent="IDENTIFYING"; $("procSub").textContent="Matching against "+CAT.length+" silhouettes…";
+    $("procLbl").textContent="IDENTIFYING";
+    let item, conf, ref=null;
     const sideEmb=await embedImage(frames[0]);
-    const sims=engine.catEmb.map(e=>dot(e,sideEmb));
-    const probs=softmaxTop(sims);
-    let best=0; sims.forEach((s,i)=>{ if(s>sims[best]) best=i; });
-    const conf=Math.round(Math.min(.99,probs[best]) *100);
-    const item=CAT[best];
+    if(engine.refdb){
+      $("procSub").textContent="Matching against "+engine.refdb.n+" reference photos…";
+      const matches=matchRefdb(engine.refdb,sideEmb);
+      const probs=softmaxTop(matches.map(m=>m.sim),40); // image↔image sims sit tighter than image↔text — softer scale
+      conf=Math.round(Math.min(.99,probs[0])*100);
+      item=productToItem(matches[0].product,matches[0].pi);
+      ref={pi:matches[0].pi,colorway:matches[0].product.colorway,year:matches[0].product.year,sim:matches[0].sim};
+    }else{
+      $("procSub").textContent="Matching against "+CAT.length+" silhouettes…";
+      const sims=engine.catEmb.map(e=>dot(e,sideEmb));
+      const probs=softmaxTop(sims);
+      let best=0; sims.forEach((s,i)=>{ if(s>sims[best]) best=i; });
+      conf=Math.round(Math.min(.99,probs[best]) *100);
+      item=CAT[best];
+    }
 
     $("procLbl").textContent="GRADING"; $("procSub").textContent="Reading sole wear & creasing…";
     const condScores=[0,0,0,0,0]; const W=[.2,.45,.35];
@@ -96,7 +125,7 @@ async function runScan(){
     const rt=route(item,grade,score,val,flag);
     const soleWear=Math.max(0,Math.min(95,Math.round(100-score-(Math.random()*6-3))));
     const ms=Math.round(performance.now()-t0);
-    lastResult={item,conf,grade,score,val,rt,flag,ms,soleWear,photo:frames[0].toDataURL("image/jpeg",.8),ts:Date.now(),src:"live"};
+    lastResult={item,conf,grade,score,val,rt,flag,ms,soleWear,ref,photo:frames[0].toDataURL("image/jpeg",.8),ts:Date.now(),src:"live"};
     // keep the sweep visible at least 1.2s so it feels deliberate, not instant-fake
     const wait=Math.max(0,1200-ms);
     setTimeout(()=>renderResult(lastResult),wait);
@@ -122,9 +151,11 @@ $("btnDemo").onclick=()=>{ demoMode=true; demoResult(); };
 function renderResult(r){
   const ph=$("resPhoto");
   ph.innerHTML = r.photo? `<img src="${r.photo}" alt="scanned shoe">` : (SVGS[r.svg]||SVGS.low);
-  ph.insertAdjacentHTML("beforeend",`<span class="conf">${r.conf}% MATCH · ${r.src==="demo"?"DEMO":(r.ms/1000).toFixed(1)+"s"}</span>`);
+  ph.insertAdjacentHTML("beforeend",`<span class="conf">${r.conf}% MATCH${r.ref?" · REF":""} · ${r.src==="demo"?"DEMO":(r.ms/1000).toFixed(1)+"s"}</span>`);
   $("resName").textContent=r.item.brand+" "+r.item.model;
-  $("resMeta").textContent=`${r.item.years} · ${r.item.cat.toUpperCase()} · MSRP $${r.item.msrp}`;
+  $("resMeta").textContent= r.ref
+    ? `${String(r.ref.colorway||"").toUpperCase()} · ${r.ref.year||r.item.years} · MSRP $${r.item.msrp}`
+    : `${r.item.years} · ${r.item.cat.toUpperCase()} · MSRP $${r.item.msrp}`;
   $("resGLetter").textContent=r.grade; $("resGLetter").className="gletter g-"+r.grade;
   $("resGWord").textContent= r.grade==="A"?"Like new": r.grade==="B"?"Gently used": r.grade==="C"?"Worn":"Damaged";
   $("resScoreBar").style.width=r.score+"%";
@@ -146,14 +177,21 @@ $("btnAccept").onclick=()=>{ logScan(lastResult,null); toast("Logged ✓"); rese
 $("btnAgain").onclick=()=>resetCapture();
 $("btnWrong").onclick=()=>{
   const sel=$("fixModel");
-  sel.innerHTML=CAT.map(c=>`<option value="${c.id}" ${lastResult&&c.id===lastResult.item.id?"selected":""}>${c.brand} ${c.model}</option>`).join("");
+  const selected=lastResult?String(lastResult.item.id):"";
+  const refOpts=engine.refdb
+    ? engine.refdb.products.map((p,i)=>`<option value="r${i}" ${"r"+i===selected?"selected":""}>${p.brand} ${p.model} · ${p.colorway}</option>`).join("")
+    : "";
+  sel.innerHTML=refOpts+CAT.map(c=>`<option value="${c.id}" ${String(c.id)===selected?"selected":""}>${c.brand} ${c.model}</option>`).join("");
   $("fixCond").value=lastResult?lastResult.score:70; $("fixCondLbl").textContent=$("fixCond").value;
   $("mFix").classList.add("on");
 };
 $("fixCond").oninput=e=>$("fixCondLbl").textContent=e.target.value;
 $("fixCancel").onclick=()=>$("mFix").classList.remove("on");
 $("fixSave").onclick=()=>{
-  const item=CAT[+$("fixModel").value], score=+$("fixCond").value;
+  const v=$("fixModel").value, score=+$("fixCond").value;
+  const item=v.startsWith("r")
+    ? productToItem(engine.refdb.products[+v.slice(1)],+v.slice(1))
+    : CAT[+v];
   const grade= score>=85?"A": score>=65?"B": score>=35?"C":"D";
   const val=valuate(item,score); const rt=route(item,grade,score,val,false);
   const fixed={...lastResult,item,score,grade,val,rt,conf:100,src:"corrected"};
@@ -162,8 +200,8 @@ $("fixSave").onclick=()=>{
 };
 function logScan(r,fix){
   const logs=store.get("skiply_scans",[]);
-  logs.push({ts:r.ts,pred:r.item.brand+" "+r.item.model,predScore:r.score,src:r.src,
-             fix:fix?{model:fix.item.brand+" "+fix.item.model,score:fix.score}:null});
+  logs.push({ts:r.ts,pred:nameOf(r.item),predScore:r.score,src:r.src,
+             fix:fix?{model:nameOf(fix.item),score:fix.score}:null});
   store.set("skiply_scans",logs); refreshSettings();
 }
 
@@ -171,7 +209,9 @@ function logScan(r,fix){
 function refreshSettings(){
   $("setEngine").textContent=engine.ready?engine.modelName+" · ready":"loading / offline";
   $("setDevice").textContent=engine.device;
-  $("setCatalog").textContent=CAT.length+" silhouettes · "+COND.length+" condition classes";
+  $("setCatalog").textContent=engine.refdb
+    ? `ref db: ${engine.refdb.products.length} products · ${engine.refdb.n} photos`
+    : CAT.length+" silhouettes · "+COND.length+" condition classes";
   const logs=store.get("skiply_scans",[]);
   $("setScans").textContent=logs.length;
   $("setFixes").textContent=logs.filter(l=>l.fix).length;
