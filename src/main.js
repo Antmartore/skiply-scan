@@ -197,3 +197,10 @@ let toastT; function toast(m){ const t=$("toast"); t.textContent=m; t.classList.
 renderAngles();
 startCam();
 bootEngine();
+
+/* ---------- PWA: offline shell + model cache ---------- */
+import { registerSW } from "virtual:pwa-register";
+registerSW({ immediate:true });
+if("serviceWorker" in navigator){
+  navigator.serviceWorker.ready.then(()=>{ $("setOffline").textContent="ready · installable"; }).catch(()=>{});
+}

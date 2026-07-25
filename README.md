@@ -23,6 +23,14 @@ Pushes to `main` build and deploy `dist/` automatically via `.github/workflows/d
 
 One-time setup: repo **Settings → Pages → Source: "GitHub Actions"** (not "Deploy from a branch"). The live URL is `https://<username>.github.io/skiply-scan/`. The build uses a relative base path, so the same bundle also deploys unchanged to Vercel or any static host later.
 
+## Offline / install (PWA)
+
+The app is a full PWA: the service worker precaches the app shell at first visit and caches the Transformers.js runtime + ONNX model files as they download. After one load on wifi, **airplane mode → the app opens and scans**.
+
+- **Install on iPhone:** open the live link in Safari → Share → *Add to Home Screen*. Launches full-screen, black theme, Skiply icon.
+- **Install on Android:** Chrome shows an install prompt, or ⋮ → *Add to Home screen*.
+- Icons are generated from the SVG wordmark by `scripts/gen_icons.py` (Pillow) into `public/icons/`.
+
 ## Before the NuShoe pitch — checklist
 
 1. Open the live link on your demo phone **on wifi once** — this downloads the model (~90MB, one time) and caches it.
@@ -50,6 +58,8 @@ src/routing.js        RESALE / REPAIR / DONATE / RECYCLE decision tree
 src/demo.js           pitch demo scans + result illustrations
 src/store.js          localStorage helper
 src/styles.css        Skiply brand system (navy void, mono data labels)
+public/               static assets: favicon, PWA icons
+scripts/gen_icons.py  renders PWA icons from the SVG wordmark
 .github/workflows/    GitHub Pages deploy on push to main
 ```
 
