@@ -63,23 +63,52 @@ function grabFrame(){
 }
 function fileToCanvas(file){ return new Promise(res=>{ const img=new Image(); img.onload=()=>{ const c=document.createElement("canvas"); const s=Math.min(img.width,img.height); c.width=c.height=448; c.getContext("2d").drawImage(img,(img.width-s)/2,(img.height-s)/2,s,s,0,0,448,448); URL.revokeObjectURL(img.src); res(c); }; img.src=URL.createObjectURL(file); }); }
 
-/* ---------- capture flow ---------- */
+/* ---------- capture flow: Face ID-style one-tap guided sweep ---------- */
+const STAGE_MS=1100;   // per angle; total sweep ~3.3s, like Face ID's circle
+let sweeping=false;
+function setRing(p){ $("ringFg").style.strokeDashoffset=138.2*(1-p); }
 function renderAngles(){
   $("angleChips").innerHTML=ANGLES.map((a,i)=>`<span class="chip ${i<angleIdx?"done":i===angleIdx?"now":""}">${i<angleIdx?"✓ ":""}${a}</span>`).join("");
   $("ringLbl").textContent=angleIdx+"/3";
-  $("ringFg").style.strokeDashoffset=138.2*(1-angleIdx/3);
+  if(!sweeping) setRing(angleIdx/3);
   const p=APROMPTS[Math.min(angleIdx,2)];
   $("prompt").textContent=angleIdx>=3?"Got it.":p[0];
-  $("subprompt").textContent=angleIdx>=3?"":p[1];
+  $("subprompt").textContent= angleIdx>=3?"" : angleIdx===0&&!sweeping?"ONE TAP · GUIDED 3-ANGLE SWEEP" : p[1];
 }
+async function startSweep(){
+  if(sweeping || angleIdx>=3 || !$("cam").videoWidth) return;
+  sweeping=true;
+  $("btnShoot").classList.add("sweeping");
+  if(navigator.vibrate) navigator.vibrate(15);
+  while(angleIdx<3 && sweeping){
+    const p=APROMPTS[angleIdx];
+    $("prompt").textContent=p[0]; $("subprompt").textContent=p[1];
+    await new Promise(res=>{
+      const start=performance.now(), base=angleIdx/3;
+      (function tick(){
+        const t=Math.min(1,(performance.now()-start)/STAGE_MS);
+        setRing(base+t/3);
+        if(t<1 && sweeping) requestAnimationFrame(tick); else res();
+      })();
+    });
+    if(!sweeping) break;
+    frames.push(grabFrame()); angleIdx++;
+    if(navigator.vibrate) navigator.vibrate(30);
+    renderAngles();
+  }
+  $("btnShoot").classList.remove("sweeping");
+  sweeping=false;
+  if(angleIdx>=3) setTimeout(runScan,350);
+}
+/* upload fallback (no camera): one photo per angle, as before */
 async function addFrame(canvas){
   frames.push(canvas); angleIdx++;
   if(navigator.vibrate) navigator.vibrate(30);
   renderAngles();
   if(angleIdx>=3){ setTimeout(runScan,350); }
 }
-$("btnShoot").onclick=()=>{ if(angleIdx<3 && $("cam").videoWidth) addFrame(grabFrame()); };
-$("fileIn").onchange=async e=>{ if(e.target.files[0] && angleIdx<3) addFrame(await fileToCanvas(e.target.files[0])); e.target.value=""; };
+$("btnShoot").onclick=startSweep;
+$("fileIn").onchange=async e=>{ if(e.target.files[0] && angleIdx<3 && !sweeping) addFrame(await fileToCanvas(e.target.files[0])); e.target.value=""; };
 
 /* ---------- scan pipeline ---------- */
 async function runScan(){
@@ -258,7 +287,7 @@ $("setExport").onclick=async()=>{
 
 /* ---------- nav helpers ---------- */
 function show(id){ document.querySelectorAll(".screen").forEach(s=>s.classList.remove("on")); $(id).classList.add("on"); }
-function resetCapture(){ frames=[]; angleIdx=0; renderAngles(); show("sAim"); }
+function resetCapture(){ sweeping=false; frames=[]; angleIdx=0; renderAngles(); show("sAim"); }
 let toastT; function toast(m){ const t=$("toast"); t.textContent=m; t.classList.add("on"); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove("on"),2600); }
 
 /* ---------- boot ---------- */
