@@ -29,6 +29,8 @@ video,#stillImg{position:absolute;inset:0;width:100%;height:100%;object-fit:cove
 .ringrow{position:absolute;left:0;right:0;bottom:18px;display:flex;align-items:center;justify-content:center;gap:26px}
 .shutter{width:66px;height:66px;border-radius:50%;background:var(--ink);border:4px solid rgba(255,255,255,.35);box-shadow:0 4px 18px rgba(0,0,0,.5)}
 .shutter:active{transform:scale(.94)}
+.shutter.sweeping{animation:shutterpulse 1.1s ease-in-out infinite;border-color:rgba(83,215,255,.6)}
+@keyframes shutterpulse{50%{transform:scale(.9);box-shadow:0 0 26px rgba(83,215,255,.45)}}
 .pring{position:relative;width:52px;height:52px}
 .pring svg{transform:rotate(-90deg)}
 .pring .bg{stroke:var(--line);fill:none;stroke-width:4}
